@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- ホーム画面追加時の設定 -->
+  <meta name="apple-mobile-web-app-title" content="薬の記録">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png" type="image/png">
+
+  <title>薬の記録</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      text-align: center;
+      color: #333;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .slot {
+      background-color: #fff;
+      border: 2px solid #4caf50;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80px;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .slot-button {
+      width: 100%;
+      height: 100%;
+      background: none;
+      border: none;
+      font-size: 18px;
+      font-weight: bold;
+      color: #2e7d32;
+      cursor: pointer;
+      word-break: break-all;
+      padding: 8px;
+    }
+    .slot-button:active {
+      background-color: #e8f5e9;
+      border-radius: 6px;
+    }
+    .slot input {
+      width: 90%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .edit-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 11px;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 2px 6px;
+      color: #555;
+      cursor: pointer;
+    }
+    .save-btn {
+      margin-top: 6px;
+      font-size: 12px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .message-box {
+      background-color: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+      font-weight: bold;
+      color: #2e7d32;
+      margin-bottom: 24px;
+      min-height: 24px;
+    }
+    .record-section {
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid #ddd;
+    }
+    .record-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .record-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .record-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+    }
+    .clear-btn {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>薬の記録</h1>
+
+  <!-- 登録通知メッセージ表示欄 -->
+  <div class="message-box" id="latestMessage">薬名をタップして記録してください</div>
+
+  <!-- 8個の枠 -->
+  <div class="grid" id="slotsContainer"></div>
+
+  <!-- 記録確認エリア -->
+  <div class="record-section">
+    <div class="record-header">
+      <h2>記録</h2>
+      <button class="clear-btn" onclick="clearLogs()">全削除</button>
+    </div>
+    <ul class="record-list" id="recordList"></ul>
+  </div>
+
+  <script>
+    const TOTAL_SLOTS = 8;
+    const isEditingState = new Array(TOTAL_SLOTS + 1).fill(false);
+
+    window.onload = function() {
+      renderSlots();
+      renderLogs();
+    };
+
+    function renderSlots() {
+      const container = document.getElementById('slotsContainer');
+      container.innerHTML = '';
+      
+      for (let i = 1; i <= TOTAL_SLOTS; i++) {
+        const savedName = localStorage.getItem(`medicine_name_${i}`) || '';
+        const slotDiv = document.createElement('div');
+        slotDiv.className = 'slot';
+
+        if (savedName === '' || isEditingState[i]) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = `薬 ${i} の名前`;
+          input.value = savedName;
+          input.id = `input_${i}`;
+
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'save-btn';
+          saveBtn.innerText = '保存';
+          saveBtn.onclick = function() {
+            const val = input.value.trim();
+            if (val !== '') {
+              localStorage.setItem(`medicine_name_${i}`, val);
+              isEditingState[i] = false;
+              renderSlots();
+            }
+          };
+
+          slotDiv.appendChild(input);
+          slotDiv.appendChild(saveBtn);
+        } else {
+          const mainBtn = document.createElement('button');
+          mainBtn.className = 'slot-button';
+          mainBtn.innerText = savedName;
+          mainBtn.onclick = function() {
+            recordDose(savedName);
+          };
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'edit-btn';
+          editBtn.innerText = '編集';
+          editBtn.onclick = function(e) {
+            e.stopPropagation();
+            isEditingState[i] = true;
+            renderSlots();
+          };
+
+          slotDiv.appendChild(mainBtn);
+          slotDiv.appendChild(editBtn);
+        }
+
+        container.appendChild(slotDiv);
+      }
+    }
+
+    function recordDose(medicineName) {
+      const now = new Date();
+      const timeString = `${now.getFullYear()}/${fillZero(now.getMonth() + 1)}/${fillZero(now.getDate())} ${fillZero(now.getHours())}:${fillZero(now.getMinutes())}:${fillZero(now.getSeconds())}`;
+
+      document.getElementById('latestMessage').innerText = `${timeString} - ${medicineName}`;
+
+      const logs = JSON.parse(localStorage.getItem('dose_logs') || '[]');
+      logs.unshift({ time: timeString, name: medicineName });
+      localStorage.setItem('dose_logs', JSON.stringify(logs));
+
+      renderLogs();
+    }
+
+    function fillZero(num) {
+      return String(num).padStart(2, '0');
+    }
+
+    function renderLogs() {
+      const listContainer = document.getElementById('recordList');
+      listContainer.innerHTML = '';
+      const logs = JSON.parse(localStorage.getItem('dose_logs') || '[]');
+
+      if (logs.length === 0) {
+        listContainer.innerHTML = '<li class="record-item">まだ記録はありません。</li>';
+        return;
+      }
+
+      logs.forEach(log => {
+        const li = document.createElement('li');
+        li.className = 'record-item';
+        li.innerHTML = `<span>${log.time}</span> <strong>${log.name}</strong>`;
+        listContainer.appendChild(li);
+      });
+    }
+
+    function clearLogs() {
+      if (confirm('すべての記録を削除しますか？')) {
+        localStorage.removeItem('dose_logs');
+        document.getElementById('latestMessage').innerText = '薬名をタップして記録してください';
+        renderLogs();
+      }
+    }
+  </script>
+</body>
+</html>
